@@ -43,7 +43,7 @@ const calculateDisplacementToDesiredPOV = (function() {
  * @namespace avatar
  */
 const SNAP_ROTATION_RADIAN = THREE.Math.DEG2RAD * 45;
-const BASE_SPEED = 3.2; //TODO: in what units?
+const BASE_SPEED = 5.0;//3.2; //TODO: in what units?
 export class CharacterControllerSystem {
   constructor(scene) {
     this.scene = scene;
