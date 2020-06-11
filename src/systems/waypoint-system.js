@@ -45,11 +45,39 @@ const calculateIconTransform = (function() {
 function isMineOrTakeOwnership(el) {
   return NAF.utils.isMine(el) || NAF.utils.takeOwnership(el);
 }
-function isOccupiableSpawnPoint(waypointData) {
-  return waypointData.canBeOccupied && waypointData.canBeSpawnPoint;
+function isOccupiableSpawnPoint(waypointComponent, SearchPrefix) {
+    // If query string with waypoint_search_prefix was provided, limit waypoints to those where
+    // the waypoint name (className of element) set in Spoke begins with the same characters as prefix
+    const waypointData = waypointComponent.data;
+    if (SearchPrefix) {
+	console.log(waypointComponent.el.className);
+	console.log(SearchPrefix);
+	console.log(waypointComponent.el.className.indexOf(SearchPrefix) == 0);
+	return (
+	    waypointData.canBeOccupied &&
+		waypointData.canBeSpawnPoint &&
+		waypointComponent.el.className.indexOf(SearchPrefix) == 0
+	);
+    } else {
+	return waypointData.canBeOccupied && waypointData.canBeSpawnPoint;
+    }
 }
-function isUnoccupiableSpawnPoint(waypointData) {
-  return !waypointData.canBeOccupied && waypointData.canBeSpawnPoint;
+function isUnoccupiableSpawnPoint(waypointComponent, SearchPrefix) {
+  // If query string with waypoint_search_prefix was provided, limit waypoints to those where
+  // the waypoint name (className of element) set in Spoke begins with the same characters as prefix
+  const waypointData = waypointComponent.data;
+  if (SearchPrefix) {
+    console.log(waypointComponent.el.className);
+    console.log(SearchPrefix);
+    console.log(waypointComponent.el.className.indexOf(SearchPrefix) == 0);
+    return (
+      !waypointData.canBeOccupied &&
+      waypointData.canBeSpawnPoint &&
+      waypointComponent.el.className.indexOf(SearchPrefix) == 0
+    );
+  } else {
+    return !waypointData.canBeOccupied && waypointData.canBeSpawnPoint;
+  }
 }
 function loadTemplateAndAddToScene(scene, templateId) {
   return new Promise(resolve => {
@@ -62,23 +90,26 @@ function loadTemplateAndAddToScene(scene, templateId) {
     }, 0);
   });
 }
-function templatesToLoadForWaypointData(data) {
+function templatesToLoadForWaypointData(component, SearchPrefix) {
   const templateIds = [];
+  const data = component.data;
   if (data.canBeClicked && data.canBeOccupied) {
     templateIds.push("occupiable-waypoint-icon");
   } else if (data.canBeClicked && !data.canBeOccupied) {
     templateIds.push("teleport-waypoint-icon");
-  } else if (isUnoccupiableSpawnPoint(data)) {
+  } else if (isUnoccupiableSpawnPoint(component, SearchPrefix)) {
     //    templateIds.push("teleport-waypoint-icon");
-  } else if (isOccupiableSpawnPoint(data)) {
+  } else if (isOccupiableSpawnPoint(component, SearchPrefix)) {
     //    templateIds.push("occupiable-waypoint-icon");
   } else {
     //templateIds.push("teleport-waypoint-icon");
   }
   return templateIds;
 }
-function loadTemplatesForWaypointData(scene, data) {
-  return templatesToLoadForWaypointData(data).map(templateId => loadTemplateAndAddToScene(scene, templateId));
+function loadTemplatesForWaypointData(scene, component, SearchPrefix) {
+  return templatesToLoadForWaypointData(component, SearchPrefix).map(templateId =>
+    loadTemplateAndAddToScene(scene, templateId)
+  );
 }
 
 function shouldTryToOccupy(waypointComponent) {
@@ -124,7 +155,8 @@ export class WaypointSystem {
     this.waypointForTemplateEl = {};
     this.elementsFromTemplatesFor = {};
     this.eventHandlers = [];
-    this.lostOwnershipOfWaypoint = this.lostOwnershipOfWaypoint.bind(this);
+    this.lostOwnershipOfWaypoint = this.lostOwnershipOfWaypoint.bind(this);      
+    this.waypointSearchPrefix = new URLSearchParams(location.search).get("waypoint_search_prefix");
     waitForDOMContentLoaded().then(() => {
       loadTemplateAndAddToScene(scene, "waypoint-preview-avatar-template").then(el => {
         this.waypointPreviewAvatar = el;
@@ -215,19 +247,21 @@ export class WaypointSystem {
     const setupEventHandlers = this.setupEventHandlersFor(component);
     const waypointId = uuid(component.el);
     this.elementsFromTemplatesFor[waypointId] = this.elementsFromTemplatesFor[waypointId] || [];
-    Promise.all(loadTemplatesForWaypointData(this.scene, component.data)).then(elementsFromTemplates => {
-      const li = this.loading.indexOf(component);
-      if (li === -1) {
-        return null;
+    Promise.all(loadTemplatesForWaypointData(this.scene, component, this.waypointSearchPrefix)).then(
+      elementsFromTemplates => {
+        const li = this.loading.indexOf(component);
+        if (li === -1) {
+          return null;
+        }
+        this.loading.splice(li, 1);
+        this.ready.push(component);
+        this.elementsFromTemplatesFor[waypointId].push(...elementsFromTemplates);
+        elementsFromTemplates.forEach(el => {
+          this.waypointForTemplateEl[uuid(el)] = component;
+        });
+        elementsFromTemplates.forEach(setupEventHandlers);
       }
-      this.loading.splice(li, 1);
-      this.ready.push(component);
-      this.elementsFromTemplatesFor[waypointId].push(...elementsFromTemplates);
-      elementsFromTemplates.forEach(el => {
-        this.waypointForTemplateEl[uuid(el)] = component;
-      });
-      elementsFromTemplates.forEach(setupEventHandlers);
-    });
+    );
   }
   unregisterComponent(component) {
     const li = this.loading.indexOf(component);
@@ -257,7 +291,7 @@ export class WaypointSystem {
     }
   }
   getUnoccupiableSpawnPoint() {
-    const candidates = this.ready.filter(component => isUnoccupiableSpawnPoint(component.data));
+    const candidates = this.ready.filter(component => isUnoccupiableSpawnPoint(component, this.waypointSearchPrefix));
     return candidates.length && candidates.splice(Math.floor(Math.random() * candidates.length), 1)[0];
   }
   lostOwnershipOfWaypoint(e) {
@@ -333,27 +367,27 @@ export class WaypointSystem {
       let resolvedWaypointOrNull;
 
       const previouslyOccupiedWaypoints = this.ready.filter(isOccupiedByMe);
-      this.tryToOccupyAnyOf(this.ready.filter(component => isOccupiableSpawnPoint(component.data))).then(
-        waypointComponentOrNull => {
-          if (waypointComponentOrNull) {
-            const waypointComponent = waypointComponentOrNull;
-            unoccupyWaypoints(previouslyOccupiedWaypoints.filter(wp => wp !== waypointComponent));
-            waypointComponent.el.object3D.updateMatrices();
-            this.characterController.shouldLandWhenPossible = true;
-            this.characterController.enqueueWaypointTravelTo(
-              waypointComponent.el.object3D.matrixWorld,
-              true,
-              waypointComponent.data
-            );
-            resolvedWaypointOrNull = waypointComponent;
-          } else if (waypointComponentOrNull === null) {
-            resolvedWaypointOrNull = this.moveToUnoccupiableSpawnPoint();
-          }
-          this.currentMoveToSpawnResolve(resolvedWaypointOrNull);
-          this.currentMoveToSpawn = null;
-          this.currentMoveToSpawnResolve = null;
+      this.tryToOccupyAnyOf(
+        this.ready.filter(component => isOccupiableSpawnPoint(component, this.waypointSearchPrefix))
+      ).then(waypointComponentOrNull => {
+        if (waypointComponentOrNull) {
+          const waypointComponent = waypointComponentOrNull;
+          unoccupyWaypoints(previouslyOccupiedWaypoints.filter(wp => wp !== waypointComponent));
+          waypointComponent.el.object3D.updateMatrices();
+          this.characterController.shouldLandWhenPossible = true;
+          this.characterController.enqueueWaypointTravelTo(
+            waypointComponent.el.object3D.matrixWorld,
+            true,
+            waypointComponent.data
+          );
+          resolvedWaypointOrNull = waypointComponent;
+        } else if (waypointComponentOrNull === null) {
+          resolvedWaypointOrNull = this.moveToUnoccupiableSpawnPoint();
         }
-      );
+        this.currentMoveToSpawnResolve(resolvedWaypointOrNull);
+        this.currentMoveToSpawn = null;
+        this.currentMoveToSpawnResolve = null;
+      });	
     } else if (this.mightNeedRespawn && performance.now() - this.ownershipLostTime < 8000) {
       this.mightNeedRespawn = false;
       this.moveToSpawnPoint();
