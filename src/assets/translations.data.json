@@ -302,13 +302,9 @@
     "preferences.maxResolution": "Max Resolution",
     "preferences.materialQualitySetting": "Material quality",
     "preferences.disableAutoPixelRatio": "Disable automatic pixel ratio adjustments",
-<<<<<<< HEAD
-    "preferences.invertTouchscreenCameraMove": "Invert direction of camera movement for touchscreens",
-=======
     "preferences.allowMultipleHubsInstances": "Disable auto-exit when multiple hubs instances are open",
     "preferences.disableIdleDetection": "Disable auto-exit when idle or backgrounded",
     "preferences.preferMobileObjectInfoPanel": "Prefer Mobile Object Info Panel",
->>>>>>> 590fdc3c884df2bfb7d533da9021e8c41cafd348
     "settings.return-to-vr": "Return to VR",
     "settings.change-avatar": "Set Name & Avatar",
     "settings.change-scene": "Choose a Scene",

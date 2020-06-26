@@ -567,24 +567,12 @@ const DEFINITIONS = new Map([
         defaultBool: false,
         promptForRefresh: true
       }
-<<<<<<< HEAD
-    ].map(preferenceListItem);
-
-    const touchscreen = [
-      { key: "invertTouchscreenCameraMove", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
-      { key: "enableOnScreenJoystickLeft", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
-      { key: "enableOnScreenJoystickRight", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false }
-    ].map(preferenceListItem);
-
-    const advanced = [
-=======
     ]
   ],
   [
     CATEGORY_MISC,
     [
       { key: "onlyShowNametagsInFreeze", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
->>>>>>> 590fdc3c884df2bfb7d533da9021e8c41cafd348
       { key: "maxResolution", prefType: PREFERENCE_LIST_ITEM_TYPE.MAX_RESOLUTION },
       {
         key: "materialQualitySetting",
