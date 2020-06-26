@@ -74,7 +74,7 @@ export default class SettingsMenu extends Component {
     const hideExtranousItems = this.props.showAsOverlay;
 
     const showRoomSettings = !!this.props.hubChannel.canOrWillIfCreator("update_hub");
-    const showCloseRoom = !!this.props.hubChannel.canOrWillIfCreator("close_hub");
+    const showCloseRoom = !!this.props.hubChannel.can("close_hub");
     const showRoomInfo = !!this.props.hubScene && !hideExtranousItems;
     const showRoomSection = showRoomSettings || showRoomInfo || showCloseRoom;
     const showStreamerMode =
