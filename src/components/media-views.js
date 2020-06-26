@@ -4,7 +4,8 @@ import GIFWorker from "../workers/gifparsing.worker.js";
 import errorImageSrc from "!!url-loader!../assets/images/media-error.gif";
 import audioIcon from "../assets/images/audio.png";
 import { paths } from "../systems/userinput/paths";
-import HLS from "hls.js/dist/hls.light.js";
+import HLS from "hls.js";
+import { MediaPlayer } from "dashjs";
 import { addAndArrangeMedia, createImageTexture, createBasisTexture } from "../utils/media-utils";
 import { proxiedUrlFor } from "../utils/media-url-utils";
 import { buildAbsoluteURL } from "url-toolkit";
@@ -14,11 +15,18 @@ import pdfjs from "pdfjs-dist";
 import { applyPersistentSync } from "../utils/permissions-utils";
 import { refreshMediaMirror, getCurrentMirroredMedia } from "../utils/mirror-utils";
 
-// Using external CDN to reduce build size
-if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-  pdfjs.GlobalWorkerOptions.workerSrc =
-    "https://assets-prod.reticulum.io/assets/js/pdfjs-dist@2.1.266/build/pdf.worker.js";
-}
+/**
+ * Warning! This require statement is fragile!
+ *
+ * How it works:
+ * require -> require the file after all import statements have been called, particularly the configs.js import which modifies __webpack_public_path__
+ * !! -> don't run any other loaders
+ * file-loader -> make webpack move the file into the dist directory and return the file path
+ * outputPath -> where to put the file
+ * name -> how to name the file
+ * Then the path to the worker script
+ */
+pdfjs.GlobalWorkerOptions.workerSrc = require("!!file-loader?outputPath=assets/js&name=[name]-[hash].js!pdfjs-dist/build/pdf.worker.min.js");
 
 const ONCE_TRUE = { once: true };
 const TYPE_IMG_PNG = { type: "image/png" };
@@ -146,6 +154,10 @@ function disposeTexture(texture) {
     texture.hls = null;
   }
 
+  if (texture.dash) {
+    texture.dash.reset();
+  }
+
   texture.dispose();
 }
 
@@ -271,7 +283,7 @@ AFRAME.registerComponent("media-video", {
     this.videoIsLive = null; // value null until we've determined if the video is live or not.
     this.onSnapImageLoaded = () => (this.isSnapping = false);
 
-    this.el.setAttribute("hover-menu__video", { template: "#video-hover-menu", dirs: ["forward", "back"] });
+    this.el.setAttribute("hover-menu__video", { template: "#video-hover-menu", isFlat: true });
     this.el.components["hover-menu__video"].getHoverMenu().then(menu => {
       // If we got removed while waiting, do nothing.
       if (!this.el.parentNode) return;
@@ -337,6 +349,17 @@ AFRAME.registerComponent("media-video", {
     sceneEl.addEventListener("camera-set-active", function(evt) {
       evt.detail.cameraEl.getObject3D("camera").add(sceneEl.audioListener);
     });
+
+    this.audioOutputModePref = window.APP.store.state.preferences.audioOutputMode;
+    this.onPreferenceChanged = () => {
+      const newPref = window.APP.store.state.preferences.audioOutputMode;
+      const shouldRecreateAudio = this.audioOutputModePref !== newPref && this.audio && this.mediaElementAudioSource;
+      this.audioOutputModePref = newPref;
+      if (shouldRecreateAudio) {
+        this.setupAudio();
+      }
+    };
+    window.APP.store.addEventListener("statechanged", this.onPreferenceChanged);
   },
 
   isMineOrLocal() {
@@ -481,12 +504,28 @@ AFRAME.registerComponent("media-video", {
     }
   },
 
-  async update(oldData) {
-    const src = this.data.src;
+  update(oldData) {
     this.updatePlaybackState();
 
-    if (!src || src === oldData.src) return;
-    return this.updateSrc(oldData);
+    const shouldUpdateSrc = this.data.src && this.data.src !== oldData.src;
+    if (shouldUpdateSrc) {
+      this.updateSrc(oldData);
+      return;
+    }
+    const shouldRecreateAudio =
+      !shouldUpdateSrc && this.mediaElementAudioSource && oldData.audioType !== this.data.audioType;
+    if (shouldRecreateAudio) {
+      this.setupAudio();
+      return;
+    }
+
+    const disablePositionalAudio = window.APP.store.state.preferences.audioOutputMode === "audio";
+    const shouldSetPositionalAudioProperties =
+      this.audio && this.data.audioType === "pannernode" && !disablePositionalAudio;
+    if (shouldSetPositionalAudioProperties) {
+      this.setPositionalAudioProperties();
+      return;
+    }
   },
 
   setupAudio() {
@@ -495,14 +534,14 @@ AFRAME.registerComponent("media-video", {
       this.el.removeObject3D("sound");
     }
 
-    if (this.data.audioType === "pannernode") {
+    const disablePositionalAudio = window.APP.store.state.preferences.audioOutputMode === "audio";
+    if (!disablePositionalAudio && this.data.audioType === "pannernode") {
       this.audio = new THREE.PositionalAudio(this.el.sceneEl.audioListener);
       this.setPositionalAudioProperties();
       this.distanceBasedAttenuation = 1;
     } else {
       this.audio = new THREE.Audio(this.el.sceneEl.audioListener);
     }
-    window.foo = this.audio;
 
     this.audio.setNodeSource(this.mediaElementAudioSource);
     this.el.setObject3D("sound", this.audio);
@@ -555,8 +594,6 @@ AFRAME.registerComponent("media-video", {
             linkedMediaElementAudioSource ||
             this.el.sceneEl.audioListener.context.createMediaElementSource(audioSourceEl);
 
-          const audioOutputMode = window.APP.store.state.preferences.audioOutputMode === "audio" ? "audio" : "panner";
-          this.data.audioType = audioOutputMode === "panner" ? "pannernode" : "audionode";
           this.setupAudio();
         }
       }
@@ -598,9 +635,9 @@ AFRAME.registerComponent("media-video", {
       if (isIOS) {
         const template = document.getElementById("video-unmute");
         this.el.appendChild(document.importNode(template.content, true));
-        this.el.setAttribute("position-at-box-shape-border__unmute-ui", {
+        this.el.setAttribute("position-at-border__unmute-ui", {
           target: ".unmute-ui",
-          dirs: ["forward", "back"]
+          isFlat: true
         });
       }
 
@@ -658,12 +695,18 @@ AFRAME.registerComponent("media-video", {
   async createVideoTextureAudioSourceEl() {
     const url = this.data.src;
     const contentType = this.data.contentType;
+    let pollTimeout;
 
     return new Promise(async (resolve, reject) => {
       if (this._audioSyncInterval) {
         clearInterval(this._audioSyncInterval);
         this._audioSyncInterval = null;
       }
+
+      const failLoad = function(e) {
+        clearTimeout(pollTimeout);
+        reject(e);
+      };
 
       const videoEl = createVideoOrAudioEl("video");
 
@@ -687,6 +730,25 @@ AFRAME.registerComponent("media-video", {
         const stream = await NAF.connection.adapter.getMediaStream(streamClientId, "video");
         videoEl.srcObject = new MediaStream(stream.getVideoTracks());
         // If hls.js is supported we always use it as it gives us better events
+      } else if (contentType.startsWith("application/dash")) {
+        const dashPlayer = MediaPlayer().create();
+        dashPlayer.extend("RequestModifier", function() {
+          return { modifyRequestHeader: xhr => xhr, modifyRequestURL: proxiedUrlFor };
+        });
+        dashPlayer.on(MediaPlayer.events.ERROR, failLoad);
+        dashPlayer.initialize(videoEl, url);
+        dashPlayer.setTextDefaultEnabled(false);
+
+        // TODO this countinously pings to get updated time, unclear if this is actually needed, but this preserves the default behavior
+        dashPlayer.clearDefaultUTCTimingSources();
+        dashPlayer.addUTCTimingSource(
+          "urn:mpeg:dash:utc:http-xsdate:2014",
+          proxiedUrlFor("https://time.akamai.com/?iso")
+        );
+        // We can also use our own HEAD request method like we use to sync NAF
+        // dashPlayer.addUTCTimingSource("urn:mpeg:dash:utc:http-head:2014", location.href);
+
+        texture.dash = dashPlayer;
       } else if (AFRAME.utils.material.isHLS(url, contentType)) {
         if (HLS.isSupported()) {
           const corsProxyPrefix = `https://${configs.CORS_PROXY_SERVER}/`;
@@ -730,7 +792,7 @@ AFRAME.registerComponent("media-video", {
                     hls.recoverMediaError();
                     break;
                   default:
-                    reject(event);
+                    failLoad(event);
                     return;
                 }
               }
@@ -754,20 +816,20 @@ AFRAME.registerComponent("media-video", {
           // If not, see if native support will work
         } else if (videoEl.canPlayType(contentType)) {
           videoEl.src = url;
-          videoEl.onerror = reject;
+          videoEl.onerror = failLoad;
         } else {
-          reject("HLS unsupported");
+          failLoad("HLS unsupported");
         }
       } else {
         videoEl.src = url;
-        videoEl.onerror = reject;
+        videoEl.onerror = failLoad;
 
         if (this.data.audioSrc) {
           // If there's an audio src, create an audio element to play it that we keep in sync
           // with the video while this component is active.
           audioEl = createVideoOrAudioEl("audio");
           audioEl.src = this.data.audioSrc;
-          audioEl.onerror = reject;
+          audioEl.onerror = failLoad;
 
           this._audioSyncInterval = setInterval(() => {
             if (Math.abs(audioEl.currentTime - videoEl.currentTime) >= 0.33) {
@@ -790,7 +852,7 @@ AFRAME.registerComponent("media-video", {
         if (isReady()) {
           resolve({ texture, audioSourceEl: audioEl || texture.image });
         } else {
-          setTimeout(poll, 500);
+          pollTimeout = setTimeout(poll, 500);
         }
       };
 
@@ -876,16 +938,7 @@ AFRAME.registerComponent("media-video", {
       }
 
       if (this.audio) {
-        const audioOutputMode = window.APP.store.state.preferences.audioOutputMode === "audio" ? "audio" : "panner";
-        if (
-          (audioOutputMode === "panner" && this.data.audioType !== "pannernode") ||
-          (audioOutputMode === "audio" && this.data.audioType !== "audionode")
-        ) {
-          this.data.audioType = audioOutputMode === "panner" ? "pannernode" : "audionode";
-          this.setupAudio();
-        }
-
-        if (audioOutputMode === "audio") {
+        if (window.APP.store.state.preferences.audioOutputMode === "audio") {
           this.el.object3D.getWorldPosition(positionA);
           this.el.sceneEl.camera.getWorldPosition(positionB);
           const distance = positionA.distanceTo(positionB);
@@ -945,6 +998,8 @@ AFRAME.registerComponent("media-video", {
       this.seekForwardButton.object3D.removeEventListener("interact", this.seekForward);
       this.seekBackButton.object3D.removeEventListener("interact", this.seekBack);
     }
+
+    window.APP.store.removeEventListener("statechanged", this.onPreferenceChanged);
   }
 });
 
@@ -1077,7 +1132,7 @@ AFRAME.registerComponent("media-image", {
       !this.data.batch ||
       texture == errorTexture ||
       this.data.contentType.includes("image/gif") ||
-      (texture.image && texture.image.hasAlpha);
+      !!(texture.image && texture.image.hasAlpha);
 
     this.mesh.material.map = texture;
     this.mesh.material.needsUpdate = true;
@@ -1180,8 +1235,6 @@ AFRAME.registerComponent("media-pdf", {
       this.renderTask = null;
 
       if (src !== this.data.src || index !== this.data.index) return;
-
-      this.currentPageTextureIsRetained = true;
     } catch (e) {
       console.error("Error loading PDF", this.data.src, e);
       texture = errorTexture;

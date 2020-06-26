@@ -24,8 +24,8 @@ const defaultEditors = [
     url: "https://tryquilt.io/?gltf=$AVATAR_GLTF"
   }
 ];
-const useEditorWhitelist = true;
-const editorWhitelist = [
+const useAllowedEditors = true;
+const allowedEditors = [
   ...defaultEditors,
   {
     name: "Skindex Editor",
@@ -430,8 +430,8 @@ export default class AvatarEditor extends Component {
   handleGltfLoaded = gltf => {
     const ext = gltf.parser.json.extensions && gltf.parser.json.extensions["MOZ_hubs_avatar"];
     let editorLinks = (ext && ext.editors) || defaultEditors;
-    if (useEditorWhitelist) {
-      editorLinks = editorLinks.filter(e => editorWhitelist.some(w => w.name === e.name && w.url === e.url));
+    if (useAllowedEditors) {
+      editorLinks = editorLinks.filter(e => allowedEditors.some(w => w.name === e.name && w.url === e.url));
     }
     this.setState({ editorLinks });
   };
@@ -462,7 +462,7 @@ export default class AvatarEditor extends Component {
                 {debug && this.textField("parent_avatar_id", "Parent Avatar ID")}
                 {debug && this.textField("parent_avatar_listing_id", "Parent Avatar Listing ID")}
                 {debug && this.textarea("description", "Description")}
-                {!!this.state.baseAvatarResults.length && this.selectListingGrid("parent_avatar_listing_id", "Model")}
+                {!this.props.avatarId && this.selectListingGrid("parent_avatar_listing_id", "Model")}
 
                 <label>Skin</label>
                 {this.mapField("base_map", "Base Map", "image/*")}

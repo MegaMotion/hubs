@@ -1,6 +1,7 @@
 import { findAncestorWithComponent } from "../utils/scene-graph";
 import { waitForDOMContentLoaded } from "../utils/async-utils";
 import { easeOutQuadratic } from "../utils/easing";
+import { registerComponentInstance, deregisterComponentInstance } from "../utils/component-utils";
 
 // This computation is expensive, so we run on at most one avatar per frame, including quiet avatars.
 // However if we detect an avatar is seen speaking (its volume is above DISABLE_AT_VOLUME_THRESHOLD)
@@ -53,7 +54,6 @@ AFRAME.registerComponent("networked-audio-analyser", {
   async init() {
     this.volume = 0;
     this.prevVolume = 0;
-    this.loudest = 0;
 
     this._updateAnalysis = this._updateAnalysis.bind(this);
     this._runScheduledWork = this._runScheduledWork.bind(this);
@@ -65,9 +65,13 @@ AFRAME.registerComponent("networked-audio-analyser", {
       this.levels = new Uint8Array(this.analyser.fftSize);
       event.detail.soundSource.connect(this.analyser);
     });
+
+    this.playerSessionId = findAncestorWithComponent(this.el, "player-info").components["player-info"].playerSessionId;
+    registerComponentInstance(this, "networked-audio-analyser");
   },
 
   remove: function() {
+    deregisterComponentInstance(this, "networked-audio-analyser");
     this.el.sceneEl.systems["frame-scheduler"].unschedule(this._runScheduledWork, "audio-analyser");
   },
 
@@ -106,16 +110,6 @@ AFRAME.registerComponent("networked-audio-analyser", {
   }
 });
 
-function connectAnalyser(mediaStream) {
-  const ctx = THREE.AudioContext.getContext();
-  const source = ctx.createMediaStreamSource(mediaStream);
-  const analyser = ctx.createAnalyser();
-  analyser.fftSize = 32;
-  const levels = new Uint8Array(analyser.fftSize);
-  source.connect(analyser);
-  return { analyser, levels };
-}
-
 function getAnalyser(el) {
   // Is this the local player
   const ikRootEl = findAncestorWithComponent(el, "ik-root");
@@ -134,19 +128,12 @@ function getAnalyser(el) {
 AFRAME.registerSystem("local-audio-analyser", {
   init() {
     this.volume = 0;
-    this.loudest = 0;
     this.prevVolume = 0;
 
-    this.el.addEventListener("local-media-stream-created", e => {
-      const mediaStream = e.detail.mediaStream;
-      if (this.stream) {
-        console.warn("media stream changed", this.stream, mediaStream);
-        // TODO: cleanup?
-      }
-      this.stream = mediaStream;
-      const { analyser, levels } = connectAnalyser(mediaStream);
-      this.analyser = analyser;
-      this.levels = levels;
+    this.el.addEventListener("local-media-stream-created", () => {
+      const audioSystem = this.el.sceneEl.systems["hubs-systems"].audioSystem;
+      this.analyser = audioSystem.outboundAnalyser;
+      this.levels = audioSystem.analyserLevels;
     });
   },
 
@@ -169,14 +156,14 @@ AFRAME.registerComponent("scale-audio-feedback", {
 
   async init() {
     await waitForDOMContentLoaded();
-    this.camera = document.getElementById("viewing-camera").object3D;
+    this.cameraEl = document.getElementById("viewing-camera");
   },
 
   tick() {
     // TODO: come up with a cleaner way to handle this.
     // bone's are "hidden" by scaling them with bone-visibility, without this we would overwrite that.
     if (!this.el.object3D.visible) return;
-    if (!this.camera) return;
+    if (!this.cameraEl) return;
     if (!this.analyser) this.analyser = getAnalyser(this.el);
 
     const { minScale, maxScale } = this.data;
@@ -185,7 +172,7 @@ AFRAME.registerComponent("scale-audio-feedback", {
 
     const scale = getAudioFeedbackScale(
       this.el.object3D,
-      this.camera,
+      this.cameraEl.object3DMap.camera,
       minScale,
       maxScale,
       this.analyser ? this.analyser.volume : 0

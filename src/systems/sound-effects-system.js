@@ -42,7 +42,6 @@ export const SOUND_MEDIA_LOADING = soundEnum++;
 export const SOUND_MEDIA_LOADED = soundEnum++;
 export const SOUND_CAMERA_TOOL_COUNTDOWN = soundEnum++;
 export const SOUND_PREFERENCE_MENU_HOVER = soundEnum++;
-export const SOUND_PREFERENCE_MENU_SELECT = soundEnum++;
 export const SOUND_SPAWN_EMOJI = soundEnum++;
 
 // Safari doesn't support the promise form of decodeAudioData, so we polyfill it.
@@ -87,7 +86,6 @@ export class SoundEffectsSystem {
       [SOUND_MEDIA_LOADING, URL_MEDIA_LOADING],
       [SOUND_MEDIA_LOADED, URL_MEDIA_LOADED],
       [SOUND_PREFERENCE_MENU_HOVER, URL_FREEZE],
-      [SOUND_PREFERENCE_MENU_SELECT, URL_TICK],
       [SOUND_SPAWN_EMOJI, URL_SPAWN_EMOJI]
     ];
     const loading = new Map();
@@ -107,9 +105,21 @@ export class SoundEffectsSystem {
         this.sounds.set(sound, audioBuffer);
       });
     });
+
+    this.isDisabled = window.APP.store.state.preferences.disableSoundEffects;
+    window.APP.store.addEventListener("statechanged", () => {
+      const shouldBeDisabled = window.APP.store.state.preferences.disableSoundEffects;
+      if (shouldBeDisabled && !this.isDisabled) {
+        this.stopAllPositionalAudios();
+        // TODO: Technically we should stop any other sounds that have been started,
+        // but we do not hold references to these and they're short-lived so I didn't bother.
+      }
+      this.isDisabled = shouldBeDisabled;
+    });
   }
 
   enqueueSound(sound, loop) {
+    if (this.isDisabled) return null;
     const audioBuffer = this.sounds.get(sound);
     if (!audioBuffer) return null;
     // The nodes are very inexpensive to create, according to
@@ -123,14 +133,14 @@ export class SoundEffectsSystem {
   }
 
   enqueuePositionalSound(sound, loop) {
+    if (this.isDisabled) return null;
     const audioBuffer = this.sounds.get(sound);
     if (!audioBuffer) return null;
 
-    const audioOutputMode = window.APP.store.state.preferences.audioOutputMode === "audio" ? "audio" : "panner";
-    const positionalAudio =
-      audioOutputMode === "panner"
-        ? new THREE.PositionalAudio(this.scene.audioListener)
-        : new THREE.Audio(this.scene.audioListener);
+    const disablePositionalAudio = window.APP.store.state.preferences.audioOutputMode === "audio";
+    const positionalAudio = disablePositionalAudio
+      ? new THREE.Audio(this.scene.audioListener)
+      : new THREE.PositionalAudio(this.scene.audioListener);
     positionalAudio.setBuffer(audioBuffer);
     positionalAudio.loop = loop;
     this.pendingPositionalAudios.push(positionalAudio);
@@ -161,6 +171,7 @@ export class SoundEffectsSystem {
   }
 
   playSoundLoopedWithGain(sound) {
+    if (this.isDisabled) return null;
     const audioBuffer = this.sounds.get(sound);
     if (!audioBuffer) return null;
 
@@ -203,7 +214,24 @@ export class SoundEffectsSystem {
     );
   }
 
+  stopAllPositionalAudios() {
+    for (let i = this.positionalAudiosStationary.length - 1; i >= 0; i--) {
+      const positionalAudio = this.positionalAudiosStationary[i];
+      this.stopPositionalAudio(positionalAudio);
+    }
+
+    for (let i = this.positionalAudiosFollowingObject3Ds.length - 1; i >= 0; i--) {
+      const positionalAudioAndObject3D = this.positionalAudiosFollowingObject3Ds[i];
+      const positionalAudio = positionalAudioAndObject3D.positionalAudio;
+      this.stopPositionalAudio(positionalAudio);
+    }
+  }
+
   tick() {
+    if (this.isDisabled) {
+      return;
+    }
+
     for (let i = 0; i < this.pendingAudioSourceNodes.length; i++) {
       this.pendingAudioSourceNodes[i].start();
     }
