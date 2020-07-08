@@ -46,30 +46,30 @@ function isMineOrTakeOwnership(el) {
   return NAF.utils.isMine(el) || NAF.utils.takeOwnership(el);
 }
 function isOccupiableSpawnPoint(waypointComponent, SearchPrefix) {
-    // If query string with waypoint_search_prefix was provided, limit waypoints to those where
-    // the waypoint name (className of element) set in Spoke begins with the same characters as prefix
-    const waypointData = waypointComponent.data;
-    if (SearchPrefix) {
-	console.log(waypointComponent.el.className);
-	console.log(SearchPrefix);
-	console.log(waypointComponent.el.className.indexOf(SearchPrefix) == 0);
-	return (
-	    waypointData.canBeOccupied &&
-		waypointData.canBeSpawnPoint &&
-		waypointComponent.el.className.indexOf(SearchPrefix) == 0
-	);
-    } else {
-	return waypointData.canBeOccupied && waypointData.canBeSpawnPoint;
-    }
+  // If query string with waypoint_search_prefix was provided, limit waypoints to those where
+  // the waypoint name (className of element) set in Spoke begins with the same characters as prefix
+  const waypointData = waypointComponent.data;
+  if (SearchPrefix) {
+    //console.log(waypointComponent.el.className);
+    //console.log(SearchPrefix);
+    //console.log(waypointComponent.el.className.indexOf(SearchPrefix) == 0);
+    return (
+      waypointData.canBeOccupied &&
+      waypointData.canBeSpawnPoint &&
+      waypointComponent.el.className.indexOf(SearchPrefix) == 0
+    );
+  } else {
+    return waypointData.canBeOccupied && waypointData.canBeSpawnPoint;
+  }
 }
 function isUnoccupiableSpawnPoint(waypointComponent, SearchPrefix) {
   // If query string with waypoint_search_prefix was provided, limit waypoints to those where
   // the waypoint name (className of element) set in Spoke begins with the same characters as prefix
   const waypointData = waypointComponent.data;
   if (SearchPrefix) {
-    console.log(waypointComponent.el.className);
-    console.log(SearchPrefix);
-    console.log(waypointComponent.el.className.indexOf(SearchPrefix) == 0);
+    //console.log(waypointComponent.el.className);
+    //console.log(SearchPrefix);
+    //console.log(waypointComponent.el.className.indexOf(SearchPrefix) == 0);
     return (
       !waypointData.canBeOccupied &&
       waypointData.canBeSpawnPoint &&
@@ -155,7 +155,7 @@ export class WaypointSystem {
     this.waypointForTemplateEl = {};
     this.elementsFromTemplatesFor = {};
     this.eventHandlers = [];
-    this.lostOwnershipOfWaypoint = this.lostOwnershipOfWaypoint.bind(this);      
+    this.lostOwnershipOfWaypoint = this.lostOwnershipOfWaypoint.bind(this);
     this.waypointSearchPrefix = new URLSearchParams(location.search).get("waypoint_search_prefix");
     waitForDOMContentLoaded().then(() => {
       loadTemplateAndAddToScene(scene, "waypoint-preview-avatar-template").then(el => {
@@ -387,7 +387,7 @@ export class WaypointSystem {
         this.currentMoveToSpawnResolve(resolvedWaypointOrNull);
         this.currentMoveToSpawn = null;
         this.currentMoveToSpawnResolve = null;
-      });	
+      });
     } else if (this.mightNeedRespawn && performance.now() - this.ownershipLostTime < 8000) {
       this.mightNeedRespawn = false;
       this.moveToSpawnPoint();

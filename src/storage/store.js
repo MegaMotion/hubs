@@ -50,7 +50,8 @@ export const SCHEMA = {
         hasScaled: { type: "boolean" },
         hasHoveredInWorldHud: { type: "boolean" },
         hasOpenedShare: { type: "boolean" },
-        entryCount: { type: "number" }
+        entryCount: { type: "number" },
+        hasBeenFlagged: { type: "boolean" }
       }
     },
 
