@@ -21,6 +21,7 @@ import { ObjectContentOrigins } from "./object-types";
 import { getAvatarSrc, getAvatarType } from "./utils/avatar-utils";
 import { pushHistoryState } from "./utils/history";
 import { SOUND_ENTER_SCENE } from "./systems/sound-effects-system";
+import { pickBestRoom } from "./vendor/ocf_utils";
 
 const isIOS = AFRAME.utils.device.isIOS();
 
@@ -39,7 +40,31 @@ export default class SceneEntryManager {
     this.history = history;
   }
 
-  init = () => {
+  init = async () => {
+    //ruh roh, needs to be async now? hmmm, hope that doesn't break anything...
+    //First, will this even work, without making it asyne, or can I make it async?
+
+    //  "https://hubs.local:8080/hub.html?hub_id=SB9RfcE&vr_entry_type=2d_now&waypoint_search_prefix=BaseSpawn";
+    let currentUrl = location.href;
+    //if (currentUrl.indexOf("/l-") == 0) { //live staging rooms will be like "l-peachgate"
+    if (currentUrl.indexOf("/m-") == 0) {
+      //meaning we did NOT find "/m-"
+      //This means we are in one of our staging rooms, eg m-peachgate.
+      //The event rooms do not have the m- prefix, so they are like "/peachgate01" etc.
+      let endPos = currentUrl.indexOf("?"); //Find the end of the slug, before the arguments.
+      let startPos = currentUrl.lastIndexOf("/");
+      let toSlug = currentUrl.substring(startPos + 1, endPos - 2); // +1 to get past "/", -2 to remove "01" etc., always two digits
+      console.log("toSlug: " + toSlug);
+      let prefix_string = "&waypoint_search_prefix=";
+      let search_start = URL.indexOf(prefix_string);
+      let search_prefix = URL.substring(search_start + prefix_string.length, URL.length);
+      if (search_prefix.length == 0) search_prefix = "BaseSpawn";
+      let bestUrl = await pickBestRoom(toSlug, search_prefix);
+      if (bestUrl.length > 0) {
+        location.href = bestUrl;
+      }
+    }
+
     this.whenSceneLoaded(() => {
       this.rightCursorController.components["cursor-controller"].enabled = false;
       this.leftCursorController.components["cursor-controller"].enabled = false;

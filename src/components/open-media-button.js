@@ -1,55 +1,7 @@
 import { isLocalHubsSceneUrl, isHubsRoomUrl, isLocalHubsAvatarUrl } from "../utils/media-url-utils";
 import { guessContentType } from "../utils/media-url-utils";
 import { handleExitTo2DInterstitial } from "../utils/vr-interstitial";
-
-/*  // NOPE!!! This was one way to do it, but instead we are relying on strict naming conventions, so we don't
-    // need to push another client build just to change the number of rooms available.
-var rooms_array = [
-  { slug: "m-peachgate", hub_sid: "oefaBKd", copy_rooms: ["SB9RfcE", "p2N4iWX"] },
-  { slug: "m-xavanadu", hub_sid: "nb4Xh4a", copy_rooms: ["DT8DngM"] },
-  { slug: "m-chelamela", hub_sid: "8kkd9rJ", copy_rooms: ["JmkxLFH"] },
-  { slug: "m-jillscrossing", hub_sid: "oZUvVBu", copy_rooms: ["akBtKYg"] },
-  { slug: "m-e13th", hub_sid: "kZSgGXo", copy_rooms: ["Yq4hDRV"] },
-  { slug: "m-communityvillage", hub_sid: "zWSpT5H", copy_rooms: ["nktgenp"] },
-  { slug: "m-upperriver", hub_sid: "kTioiNj", copy_rooms: ["EXXEoHM", "PWmwsHC"] },
-  { slug: "m-theritz", hub_sid: "xFKRmiG", copy_rooms: ["7tDAuQU"] },
-  { slug: "m-mainstage", hub_sid: "VDcxrbc", copy_rooms: ["zTqh7Ce"] }
-];*/
-
-async function getRoomsData() {
-  // by https://twitter.com/jamesckane for @paracreative worked on the #ApartPosters show.
-  //let endpoint = "/api/v1/media/search?source=rooms&filter=public";
-  let endpoint = "https://hubs.ocfintheclouds.net/api/v1/media/search?source=rooms&filter=public";
-  let response = await fetch(endpoint);
-  let json = await response.json();
-
-  let next_cursor = json.meta.next_cursor;
-  while (next_cursor > 0) {
-    let new_endpoint = endpoint + "&cursor=" + String(next_cursor);
-    response = await fetch(new_endpoint);
-    let next_json = await response.json();
-    next_json.entries.forEach(room => {
-      json.entries.push(room);
-    });
-    if (next_json.meta.next_cursor === undefined) next_cursor = 0;
-    else next_cursor = next_json.meta.next_cursor;
-  }
-  return json;
-}
-
-function compareRooms(a, b) {
-  let slugA = String(a.url);
-  slugA = slugA.substring(slugA.lastIndexOf("/"), slugA.length);
-  let slugB = String(b.url);
-  slugB = slugB.substring(slugB.lastIndexOf("/"), slugB.length);
-  let comparison = 0;
-  if (slugA > slugB) {
-    comparison = 1;
-  } else if (slugA < slugB) {
-    comparison = -1;
-  }
-  return comparison;
-}
+import { pickBestRoom } from "../vendor/ocf_utils";
 
 AFRAME.registerComponent("open-media-button", {
   schema: {
@@ -103,11 +55,15 @@ AFRAME.registerComponent("open-media-button", {
         let currentUrl = location.href;
         console.log("Going to room: " + this.src + "\n from room: " + currentUrl);
 
+        //if (currentUrl.indexOf("/l-") > 0) { //live staging rooms
         if (currentUrl.indexOf("/m-") > 0) {
           //This means we are in one of our staging rooms, eg m-peachgate.
           //The event rooms do not have the m- prefix, so they are like "/peachgate01" etc.
+          //let newUrl = this.src;
+          //newUrl.replace("/m-", "/l-");
+          //console.log("fixed the URL: \n" + newUrl);
           location.href = this.src; //If we are already in a staging room, then just follow the link.
-        } //NOTE: in the future, ALL staging rooms will have to continue to be named this way.
+        }
 
         //console.log("Has been flagged: " + String(window.APP.store.state.activity.hasBeenFlagged));
         //console.log("Has Scaled: " + String(window.APP.store.state.activity.hasScaled));
@@ -116,11 +72,18 @@ AFRAME.registerComponent("open-media-button", {
         let URL = this.src;
         let endPos = URL.indexOf("?"); //Find the end of the slug, before the arguments.
         let startPos = URL.indexOf("/m-"); //Make use of the fact that all of our rooms start like "m-peachgate"
-        let theSlug = URL.substring(startPos + 3, endPos); //+3 to get past the 'm-'
-        console.log("theSlug: " + theSlug);
+        let toSlug = URL.substring(startPos + 3, endPos); //+3 to get past the 'm-'
+        console.log("toSlug: " + toSlug);
+        let prefix_string = "&waypoint_search_prefix=";
+        let search_start = URL.indexOf(prefix_string);
+        let search_prefix = URL.substring(search_start + prefix_string.length, URL.length);
 
+        let bestUrl = await pickBestRoom(toSlug, search_prefix);
+        /*
         let rooms_data = await getRoomsData();
         let rooms = rooms_data.entries;
+        let search_prefix = "StageSpawn";
+        let room_buffer = 5; //maybe? just to cover people currently on their way in.
         console.log("Total room data entries: " + String(rooms.length));
         let bestUrl = "";
         var copyRooms = rooms.filter(function(room) {
@@ -128,20 +91,17 @@ AFRAME.registerComponent("open-media-button", {
         });
         console.log("Room entries for " + theSlug + ": " + String(copyRooms.length));
         if (copyRooms.length > 0) {
-          copyRooms.forEach(room => {
-            console.log("unsorted rooms: " + room.url);
-          });
           copyRooms.sort(compareRooms);
           copyRooms.forEach(room => {
             console.log("sorted rooms: " + room.url);
             let memberCount = room.member_count;
-            let lobbyCount = room.lobby_count;
-            if (memberCount < room.room_size && bestUrl.length == 0) {
-              bestUrl = room.url + "?vr_entry_type=2d_now&waypoint_search_prefix=StageSpawn";
+            //let lobbyCount = room.lobby_count;
+            if (memberCount < room.room_size - room_buffer && bestUrl.length == 0) {
+              bestUrl = room.url + "?vr_entry_type=2d_now&waypoint_search_prefix=" + search_prefix;
             }
           });
         }
-
+        */
         //console.log("JSON: " + json);
         if (bestUrl.length > 0) {
           location.href = bestUrl;
