@@ -61,7 +61,11 @@ AFRAME.registerComponent("open-media-button", {
         console.log("Going to room: " + this.src + "\n from room: " + currentUrl);
 
         //if (currentUrl.indexOf("/l-") > 0) { //live staging rooms
-        if (currentUrl.indexOf("/m-") > 0) {
+        if (currentUrl.indexOf("/r-") > 0) {
+          //FIX FIX FIX FIX FIX FIX, this is hard coded to an arbitrary prefix,
+          //was m- for OCF, using r- for HubsEvents, but the whole idea is terrible, I should be checking room IDs
+          //against a list or I don't know, anything but this.
+          //
           //This means we are in one of our staging rooms, eg m-peachgate.
           //The event rooms do not have the m- prefix, so they are like "/peachgate01" etc.
           //let newUrl = this.src;
