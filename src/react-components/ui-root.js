@@ -1903,91 +1903,92 @@ class UIRoot extends Component {
                 <FormattedMessage id="entry.leave-room" />
               </button>
             )}
-            {showInviteButton && (
-              <div
-                className={classNames({
-                  [inviteStyles.inviteContainer]: true,
-                  [inviteStyles.inviteContainerBelowHud]: entered,
-                  [inviteStyles.inviteContainerInverted]: this.state.showShareDialog
-                })}
-              >
-                {!embed &&
-                  !streaming && (
+            {false && //TEMP: HubsEvents does not want this button and has not found a cleaner way to turn it off.
+              showInviteButton && (
+                <div
+                  className={classNames({
+                    [inviteStyles.inviteContainer]: true,
+                    [inviteStyles.inviteContainerBelowHud]: entered,
+                    [inviteStyles.inviteContainerInverted]: this.state.showShareDialog
+                  })}
+                >
+                  {!embed &&
+                    !streaming && (
+                      <button
+                        className={classNames({
+                          [inviteStyles.inviteButton]: true,
+                          [inviteStyles.hideSmallScreens]: this.occupantCount() > 1 && entered,
+                          [inviteStyles.inviteButtonLowered]: hasTopTip
+                        })}
+                        onClick={() => this.toggleShareDialog()}
+                      >
+                        <FormattedMessage id="entry.share-button" />
+                      </button>
+                    )}
+                  {showChooseSceneButton && (
                     <button
-                      className={classNames({
-                        [inviteStyles.inviteButton]: true,
-                        [inviteStyles.hideSmallScreens]: this.occupantCount() > 1 && entered,
-                        [inviteStyles.inviteButtonLowered]: hasTopTip
-                      })}
-                      onClick={() => this.toggleShareDialog()}
+                      className={classNames([styles.chooseSceneButton])}
+                      onClick={() => {
+                        this.props.performConditionalSignIn(
+                          () => this.props.hubChannel.can("update_hub"),
+                          () => {
+                            showFullScreenIfAvailable();
+                            this.props.mediaSearchStore.sourceNavigateWithNoNav("scenes", "use");
+                          },
+                          "change-scene"
+                        );
+                      }}
                     >
-                      <FormattedMessage id="entry.share-button" />
+                      <FormattedMessage id="entry.change-scene" />
                     </button>
                   )}
-                {showChooseSceneButton && (
-                  <button
-                    className={classNames([styles.chooseSceneButton])}
-                    onClick={() => {
-                      this.props.performConditionalSignIn(
-                        () => this.props.hubChannel.can("update_hub"),
-                        () => {
-                          showFullScreenIfAvailable();
-                          this.props.mediaSearchStore.sourceNavigateWithNoNav("scenes", "use");
-                        },
-                        "change-scene"
-                      );
-                    }}
-                  >
-                    <FormattedMessage id="entry.change-scene" />
-                  </button>
-                )}
 
-                {showInviteTip && (
-                  <div className={styles.inviteTip}>
-                    <div className={styles.inviteTipAttachPoint} />
-                    <FormattedMessage id={`entry.${isMobile ? "mobile" : "desktop"}.invite-tip`} />
-                  </div>
-                )}
-                {!embed &&
-                  this.occupantCount() > 1 &&
-                  !hasTopTip &&
-                  entered &&
-                  !streaming && (
-                    <button onClick={this.onMiniInviteClicked} className={inviteStyles.inviteMiniButton}>
-                      <span>
-                        {this.state.miniInviteActivated
-                          ? navigator.share
-                            ? "sharing..."
-                            : "copied!"
-                          : `${configs.SHORTLINK_DOMAIN}/` + this.props.hub.hub_id}
-                      </span>
-                    </button>
+                  {showInviteTip && (
+                    <div className={styles.inviteTip}>
+                      <div className={styles.inviteTipAttachPoint} />
+                      <FormattedMessage id={`entry.${isMobile ? "mobile" : "desktop"}.invite-tip`} />
+                    </div>
                   )}
-                {embed && (
-                  <a href={baseUrl} className={inviteStyles.enterButton} target="_blank" rel="noopener noreferrer">
-                    <FormattedMessage id="entry.open-in-window" />
-                  </a>
-                )}
-                {this.state.showShareDialog && (
-                  <InviteDialog
-                    allowShare={!isMobileVR}
-                    entryCode={this.props.hub.entry_code}
-                    embedUrl={
-                      this.props.embedToken && !isMobilePhoneOrVR
-                        ? `${baseUrl}?embed_token=${this.props.embedToken}`
-                        : null
-                    }
-                    hasPush={hasPush}
-                    isSubscribed={
-                      this.state.isSubscribed === undefined ? this.props.initialIsSubscribed : this.state.isSubscribed
-                    }
-                    onSubscribeChanged={() => this.onSubscribeChanged()}
-                    hubId={this.props.hub.hub_id}
-                    onClose={() => this.setState({ showShareDialog: false })}
-                  />
-                )}
-              </div>
-            )}
+                  {!embed &&
+                    this.occupantCount() > 1 &&
+                    !hasTopTip &&
+                    entered &&
+                    !streaming && (
+                      <button onClick={this.onMiniInviteClicked} className={inviteStyles.inviteMiniButton}>
+                        <span>
+                          {this.state.miniInviteActivated
+                            ? navigator.share
+                              ? "sharing..."
+                              : "copied!"
+                            : `${configs.SHORTLINK_DOMAIN}/` + this.props.hub.hub_id}
+                        </span>
+                      </button>
+                    )}
+                  {embed && (
+                    <a href={baseUrl} className={inviteStyles.enterButton} target="_blank" rel="noopener noreferrer">
+                      <FormattedMessage id="entry.open-in-window" />
+                    </a>
+                  )}
+                  {this.state.showShareDialog && (
+                    <InviteDialog
+                      allowShare={!isMobileVR}
+                      entryCode={this.props.hub.entry_code}
+                      embedUrl={
+                        this.props.embedToken && !isMobilePhoneOrVR
+                          ? `${baseUrl}?embed_token=${this.props.embedToken}`
+                          : null
+                      }
+                      hasPush={hasPush}
+                      isSubscribed={
+                        this.state.isSubscribed === undefined ? this.props.initialIsSubscribed : this.state.isSubscribed
+                      }
+                      onSubscribeChanged={() => this.onSubscribeChanged()}
+                      hubId={this.props.hub.hub_id}
+                      onClose={() => this.setState({ showShareDialog: false })}
+                    />
+                  )}
+                </div>
+              )}
             <StateRoute
               stateKey="overlay"
               stateValue="invite"
