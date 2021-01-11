@@ -3,13 +3,13 @@
 :local(.message-entry) {
   position: relative;
   margin: 10px 24px 24px 24px;
-  height: 48px;
+  height: 248px; //48px; //doesn't work...?
   display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: var(--text-field-background-color);
+  justify-content: left; //center
+  align-items: left; //center
+  background-color: transparent; //var(--text-field-background-color);
   border: 1px solid var(--text-field-border-color);
-  border-radius: 16px;
+  border-radius: 8px; //16px
 }
 
 :local(.message-entry-disabled) {
@@ -111,17 +111,17 @@
   position: absolute;
   z-index: 2;
   bottom: 20px;
-  left: 50%;
+  left: 25%; //50%;
   -webkit-transform: translateX(-50%);
   transform: translateX(-50%);
   width: 95%;
   max-width: 700px;
-  height: 48px;
+  height: 248px; //48px; //doesn't work...?
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: var(--overlay-text-field-background-color);
-  border-radius: 16px;
+  background-color: transparent; //var(--overlay-text-field-background-color);
+  border-radius: 8px;//16px
   pointer-events: auto;
   transition: opacity 0.15s linear;
 
