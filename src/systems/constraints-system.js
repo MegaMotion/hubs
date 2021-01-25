@@ -61,7 +61,7 @@ export class ConstraintsSystem {
         if (this.constraintPairs[heldEntityId].length === 0) {
           delete this.constraintPairs[heldEntityId];
         }
-        this.physicsSystem.removeConstraint(entityId);
+        this.physicsSystem.removeConstraint(entityId); //THIS IS WHERE WE THROW THINGS
       }
 
       if (!this.constraintPairs[heldEntityId] || this.constraintPairs[heldEntityId].length < 1) {

@@ -202,6 +202,12 @@ AFRAME.registerSystem("transform-selected-object", {
     this.mode = data.mode;
     this.transforming = true;
 
+    //TEMP, testing.
+    console.log(
+      "startTransform!!!! transform-object-button.js,  transform mode: " + this.mode + " axis " + this.axis + "\n"
+    );
+    //TEMP, testing.
+
     if (this.mode === TRANSFORM_MODE.ALIGN) {
       this.store.update({ activity: { hasRecentered: true } });
       return;
@@ -258,6 +264,12 @@ AFRAME.registerSystem("transform-selected-object", {
     this.el.camera.getWorldPosition(v);
     plane.matrixNeedsUpdate = true;
     const cameraToPlaneDistance = v.sub(plane.position).length();
+
+    //TEMP, testing.
+    //console.log(
+    //  "cursorAxisOrScaleTick!!!!!!!!!!!!!! transform-object-button.js,   transform mode: " + this.mode + "\n"
+    //);
+    //TEMP, testing.
 
     intersections.length = 0;
     const raycaster = this.hand.el.id === "player-left-controller" ? this.raycasters.left : this.raycasters.right;
