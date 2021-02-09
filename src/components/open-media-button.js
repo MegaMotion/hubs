@@ -61,7 +61,10 @@ AFRAME.registerComponent("open-media-button", {
         console.log("Going to room: " + this.src + "\n from room: " + currentUrl);
 
         //if (currentUrl.indexOf("/l-") > 0) { //live staging rooms
-        if (currentUrl.indexOf("/r-") > 0) {
+        if (true) {
+          //FIX FIX FIX: rewriting load balancing section, for now just follow links the normal way.
+          //(currentUrl.indexOf("/r-") > 0) {
+
           //FIX FIX FIX FIX FIX FIX, this is hard coded to an arbitrary prefix,
           //was m- for OCF, using r- for HubsEvents, but the whole idea is terrible, I should be checking room IDs
           //against a list or I don't know, anything but this.
@@ -72,15 +75,17 @@ AFRAME.registerComponent("open-media-button", {
           //newUrl.replace("/m-", "/l-");
           //console.log("fixed the URL: \n" + newUrl);
           location.href = this.src; //If we are already in a staging room, then just follow the link.
+          return;
         }
 
+        /////////////////////////////////////////////////////////////////////////
         //console.log("Has been flagged: " + String(window.APP.store.state.activity.hasBeenFlagged));
         //console.log("Has Scaled: " + String(window.APP.store.state.activity.hasScaled));
         //console.log("Entry Count: " + String(window.APP.store.state.activity.entryCount));
 
         let URL = this.src;
         let endPos = URL.indexOf("?"); //Find the end of the slug, before the arguments.
-        let startPos = URL.indexOf("/m-"); //Make use of the fact that all of our rooms start like "m-peachgate"
+        let startPos = URL.indexOf("/m-"); //Make use of the fact that all of our rooms start like "m-peachgate"  FIX FIX FIX
         let toSlug = URL.substring(startPos + 3, endPos); //+3 to get past the 'm-'
         console.log("toSlug: " + toSlug);
         let prefix_string = "&waypoint_search_prefix=";
